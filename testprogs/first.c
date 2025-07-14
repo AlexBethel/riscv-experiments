@@ -1,8 +1,6 @@
-#define FOO (*(unsigned int *)128)
-#define BAR (*(unsigned int *)132)
+#include "system.h"
 
-void myfunc() {
-  FOO = 5;
-  BAR = 10;
-  FOO += BAR;
+__attribute((section(".start"))) void _start() {
+  puts("Hello World!");
+  exit();
 }

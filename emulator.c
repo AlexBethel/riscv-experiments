@@ -289,11 +289,12 @@ int main(int argc, char *argv[]) {
   ASSERT_ERRNO(fd != -1, "error opening %s", argv[1]);
   ASSERT_ERRNO(read(fd, memory, sizeof(memory)) != 0, "read() on %s", argv[1]);
   registers.xreg[1] = 0xfffffff0;  // sentinel return address
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; 1; i++) {
     fprintf(stderr, " -> r1 is %08x\n", registers.xreg[1]);
     exec_inst(*(u32 *)(memory + registers.pc));
     if (registers.pc == 0xfffffff0) {
       fprintf(stderr, "program terminated!\n");
+      fprintf(stderr, "global s9 is %d\n", registers.xreg[25]);
       return 0;
     }
   }
