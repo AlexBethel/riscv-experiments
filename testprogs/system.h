@@ -3,11 +3,11 @@
 
 static inline void ecall(unsigned int arg0, unsigned int arg1) {
 #ifdef __riscv
-  register char call asm("s8") = arg0;
-  register char arg asm("s9") = arg1;
+  register unsigned int call asm("s8") = arg0;
+  register unsigned int arg asm("s9") = arg1;
 #else
-  char call = arg0;
-  char arg = arg1;
+  unsigned int call = arg0;
+  unsigned int arg = arg1;
 #endif
   asm volatile (
     "ecall"

@@ -13,6 +13,21 @@ static struct registers {
 
 u8 memory[KB(64)];
 
+static void ecall() {
+  unsigned int arg0 = registers.xreg[24]; // s8
+  unsigned int arg1 = registers.xreg[25]; // s9
+  switch (arg0) {
+  case 0: {
+    // exit
+    exit(0);
+  }
+  case 1: {
+    // putchar
+    putchar(arg1);
+  }
+  }
+}
+
 static u32 seg(u32 inst, u32 high, u32 low) {
   u32 width = (high + 1) - low;
   u32 mask = (1 << width) - 1;
@@ -56,8 +71,8 @@ static u32 j_imm(u32 inst) {
   return (imm10_1 << 1) | (imm11 << 11) | (imm19_12 << 12) | (imm20 << 20);
 }
 
-#define unimplemented(feat)                \
-  fprintf(stderr, "unimplemented: " feat); \
+#define unimplemented(feat)                                                    \
+  fprintf(stderr, "unimplemented: " feat);                                     \
   exit(1);
 
 static void exec_inst(u32 inst) {
