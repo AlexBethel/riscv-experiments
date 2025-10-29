@@ -6,6 +6,9 @@
 
 #include "util.h"
 
+// #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
+#define DEBUG(...)
+
 static struct registers {
   u32 pc;
   u32 xreg[32];
@@ -85,8 +88,8 @@ static void exec_inst(u32 inst) {
 #define RS2 (registers.xreg[rs2(inst)])
 #define RD (registers.xreg[rd(inst)])
 
-  fprintf(stderr, "executing instruction %08x\n", inst);
-  fprintf(stderr, "opcode %08x\n", opcode(inst));
+  DEBUG("executing instruction %08x\n", inst);
+  DEBUG("opcode %08x\n", opcode(inst));
 
   switch (opcode(inst)) {
   case 0b0110111: {             // LUI
@@ -96,34 +99,34 @@ static void exec_inst(u32 inst) {
     RD = (u_imm(inst) << 12) + registers.pc;
   } break;
   case 0b1101111: {             // JAL
-    fprintf(stderr, "JAL %08x\n", sex(20, j_imm(inst)));
-    fprintf(stderr, "writing return to x%d\n", rd(inst));
+    DEBUG("JAL %08x\n", sex(20, j_imm(inst)));
+    DEBUG("writing return to x%d\n", rd(inst));
     RD = registers.pc + 4;
     registers.pc += sex(20, j_imm(inst)) - 4; // 4 will be added back at the end of exec
   } break;
   case 0b1100111: {             // JALR
-    fprintf(stderr, "JALR register %d, store to %d\n", rs1(inst), rd(inst));
+    DEBUG("JALR register %d, store to %d\n", rs1(inst), rd(inst));
     RD = registers.pc + 4;
-    fprintf(stderr, "computed jump location [%08x + %08x - 4] = %08x\n",
+    DEBUG("computed jump location [%08x + %08x - 4] = %08x\n",
             RS1, i_imm(inst), (i32)RS1 + (i32)i_imm(inst) - 4);
     registers.pc = (i32)RS1 + (i32)i_imm(inst) - 4;
     registers.pc &= ~1;
-    fprintf(stderr, "jumped to %08x\n", registers.pc + 4);
+    DEBUG("jumped to %08x\n", registers.pc + 4);
   } break;
   case 0b1100011: {
     switch (funct3(inst)) {
     case 0b000: {               // BEQ
-      printf("beq\n");
+      DEBUG("beq\n");
       if (RS1 == RS2)
         registers.pc += sex(12, b_imm(inst)) - 4;
     } break;
     case 0b001: {               // BNE
-      printf("bne %08x\n", sex(12, b_imm(inst)));
+      DEBUG("bne %08x\n", sex(12, b_imm(inst)));
       if (RS1 != RS2)
         registers.pc += sex(12, b_imm(inst)) - 4;
     } break;
     case 0b100: {               // BLT
-      printf("blt\n");
+      DEBUG("blt\n");
       if ((i32)RS1 < (i32)RS2)
         registers.pc += sex(12, b_imm(inst)) - 4;
     } break;
@@ -167,10 +170,10 @@ static void exec_inst(u32 inst) {
     }
   } break;
   case 0b0100011: {
-    fprintf(stderr, "store\n");
-    fprintf(stderr, "store imm %08x\n", s_imm(inst));
-    fprintf(stderr, "computed destination %08x\n", RS1 + s_imm(inst));
-    fprintf(stderr, "writing reg %d value %08x\n", rs2(inst), RS2);
+    DEBUG("store\n");
+    DEBUG("store imm %08x\n", s_imm(inst));
+    DEBUG("computed destination %08x\n", RS1 + s_imm(inst));
+    DEBUG("writing reg %d value %08x\n", rs2(inst), RS2);
     switch (funct3(inst)) {
     case 0b000: {               // SB
       *(u8 *)(memory + RS1 + s_imm(inst)) = RS2;
@@ -187,12 +190,12 @@ static void exec_inst(u32 inst) {
     }
   } break;
   case 0b0010011: {
-    fprintf(stderr, "arithmetic funct3 %08x\n", funct3(inst));
+    DEBUG("arithmetic funct3 %08x\n", funct3(inst));
     switch (funct3(inst)) {
     case 0b000: {               // ADDI
-      fprintf(stderr, "addi %08x + %08x\n", RS1, sex(11, i_imm(inst)));
+      DEBUG("addi %08x + %08x\n", RS1, sex(11, i_imm(inst)));
       RD = RS1 + sex(11, i_imm(inst));
-      fprintf(stderr, "result %08x in register %d\n", RD, rd(inst));
+      DEBUG("result %08x in register %d\n", RD, rd(inst));
     } break;
     case 0b010: {               // SLTI
       RD = (i32)RS1 < (i32)i_imm(inst);
@@ -288,7 +291,7 @@ static void exec_inst(u32 inst) {
   case 0b1110011: {
     switch (i_imm(inst)) {
     case 0b00000000000: {       // ECALL
-      fprintf(stderr, "ecall\n");
+      DEBUG("ecall\n");
       ecall();
     } break;
     case 0b00000000001: {       // EBREAK
@@ -303,7 +306,7 @@ static void exec_inst(u32 inst) {
     unimplemented("bad instruction\n");
   } break;
   }
-  fprintf(stderr, " !!! advance PC %08x -> %08x\n", registers.pc, registers.pc + 4);
+  DEBUG(" !!! advance PC %08x -> %08x\n", registers.pc, registers.pc + 4);
   registers.pc += 4;
   registers.xreg[0] = 0;
 }
@@ -315,11 +318,11 @@ int main(int argc, char *argv[]) {
   ASSERT_ERRNO(read(fd, memory, sizeof(memory)) != 0, "read() on %s", argv[1]);
   registers.xreg[1] = 0xfffffff0;  // sentinel return address
   for (int i = 0; 1; i++) {
-    fprintf(stderr, " -> r1 is %08x\n", registers.xreg[1]);
+    DEBUG(" -> r1 is %08x\n", registers.xreg[1]);
     exec_inst(*(u32 *)(memory + registers.pc));
     if (registers.pc == 0xfffffff0) {
-      fprintf(stderr, "program terminated!\n");
-      fprintf(stderr, "global s9 is %d\n", registers.xreg[25]);
+      DEBUG("program terminated!\n");
+      DEBUG("global s9 is %d\n", registers.xreg[25]);
       return 0;
     }
   }

@@ -35,18 +35,14 @@ static inline int puts(const char *str) {
 
 /* Main function. */
 extern int main();
-/* __attribute((section(".start"))) void _start() { */
-/*   main(); */
-/*   exit(); */
-/* } */
 asm("  .section .start,\"ax\",@progbits\n"
     "  .align 2\n"
     "  .globl _start\n"
     "  .type _start, @function\n"
     "_start:\n"
-    "  li sp, 0xfff0\n"
-    "  call main\n"
-    "  li a0, 0\n"
+    "  li sp, 0xfff0\n" // Initialize the stack pointer
+    "  call main\n" // main()
+    "  li a0, 0\n"  // exit()
     "  li a1, 0\n"
     "  ecall\n");
 
