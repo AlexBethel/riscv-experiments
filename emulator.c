@@ -14,8 +14,8 @@ static struct registers {
 u8 memory[KB(64)];
 
 static void ecall() {
-  unsigned int arg0 = registers.xreg[24]; // s8
-  unsigned int arg1 = registers.xreg[25]; // s9
+  unsigned int arg0 = registers.xreg[10]; // a0
+  unsigned int arg1 = registers.xreg[11]; // a1
   switch (arg0) {
   case 0: {
     // exit
@@ -29,45 +29,50 @@ static void ecall() {
 }
 
 static u32 seg(u32 inst, u32 high, u32 low) {
-  u32 width = (high + 1) - low;
+  u32 width = high - low;
   u32 mask = (1 << width) - 1;
   return (inst >> low) & mask;
 }
 
-#define BLOCK(name, high, low)                                                 \
-  static u32 name(u32 inst) { return seg(inst, high, low); }
-BLOCK(funct7, 31, 25);
-BLOCK(rs2, 24, 20);
-BLOCK(rs1, 19, 15);
-BLOCK(funct3, 14, 12);
-BLOCK(rd, 11, 7);
-BLOCK(opcode, 6, 0);
-#undef BLOCK
-static u32 i_imm(u32 inst) {
-  return seg(inst, 31, 20);
-}
-static u32 s_imm(u32 inst) {
-  u32 a = seg(inst, 31, 25);
-  u32 b = seg(inst, 11, 7);
-  return (a << 5) | b;
-}
-static u32 u_imm(u32 inst) {
-  return seg(inst, 31, 12);
+static u32 sex(u8 n_bits, u32 x) {
+  if (x & (1 << n_bits))
+    x |= ~((1 << n_bits) - 1);
+  return x;
 }
 
-// these are most likely incorrect, at least partially
+#define BLOCK(name, high, low)                                                 \
+  static u32 name(u32 inst) { return seg(inst, high, low); }
+BLOCK(funct7, 32, 25);
+BLOCK(rs2, 25, 20);
+BLOCK(rs1, 20, 15);
+BLOCK(funct3, 15, 12);
+BLOCK(rd, 12, 7);
+BLOCK(opcode, 7, 0);
+#undef BLOCK
+static u32 i_imm(u32 inst) {
+  return seg(inst, 32, 20);
+}
+static u32 s_imm(u32 inst) {
+  u32 imm11_5 = seg(inst, 32, 25);
+  u32 imm4_0 = seg(inst, 12, 7);
+  return (imm11_5 << 5) | imm4_0;
+}
+static u32 u_imm(u32 inst) {
+  return seg(inst, 32, 12); // TODO: leftshift by 12??
+}
+
 static u32 b_imm(u32 inst) {
-  u32 imm12 = seg(inst, 31, 30);
-  u32 imm10_5 = seg(inst, 30, 25);
-  u32 imm4_1 = seg(inst, 11, 8);
-  u32 imm11 = seg(inst, 7, 6);
+  u32 imm12 = seg(inst, 32, 31);
+  u32 imm10_5 = seg(inst, 31, 25);
+  u32 imm4_1 = seg(inst, 12, 8);
+  u32 imm11 = seg(inst, 8, 7);
   return (imm4_1 << 1) | (imm10_5 << 5) | (imm11 << 11) | (imm12 << 12);
 }
 static u32 j_imm(u32 inst) {
-  u32 imm20 = seg(inst, 31, 30);
-  u32 imm10_1 = seg(inst, 30, 21);
-  u32 imm11 = seg(inst, 20, 19);
-  u32 imm19_12 = seg(inst, 19, 12);
+  u32 imm20 = seg(inst, 32, 31);
+  u32 imm10_1 = seg(inst, 31, 21);
+  u32 imm11 = seg(inst, 21, 20);
+  u32 imm19_12 = seg(inst, 20, 12);
   return (imm10_1 << 1) | (imm11 << 11) | (imm19_12 << 12) | (imm20 << 20);
 }
 
@@ -91,8 +96,10 @@ static void exec_inst(u32 inst) {
     RD = (u_imm(inst) << 12) + registers.pc;
   } break;
   case 0b1101111: {             // JAL
+    fprintf(stderr, "JAL %08x\n", sex(20, j_imm(inst)));
+    fprintf(stderr, "writing return to x%d\n", rd(inst));
     RD = registers.pc + 4;
-    registers.pc += (i32)j_imm(inst) - 4; // 4 will be added back at the end of exec
+    registers.pc += sex(20, j_imm(inst)) - 4; // 4 will be added back at the end of exec
   } break;
   case 0b1100111: {             // JALR
     fprintf(stderr, "JALR register %d, store to %d\n", rs1(inst), rd(inst));
@@ -106,28 +113,31 @@ static void exec_inst(u32 inst) {
   case 0b1100011: {
     switch (funct3(inst)) {
     case 0b000: {               // BEQ
+      printf("beq\n");
       if (RS1 == RS2)
-        registers.pc += b_imm(inst);
+        registers.pc += sex(12, b_imm(inst)) - 4;
     } break;
     case 0b001: {               // BNE
+      printf("bne %08x\n", sex(12, b_imm(inst)));
       if (RS1 != RS2)
-        registers.pc += b_imm(inst);
+        registers.pc += sex(12, b_imm(inst)) - 4;
     } break;
     case 0b100: {               // BLT
+      printf("blt\n");
       if ((i32)RS1 < (i32)RS2)
-        registers.pc += b_imm(inst);
+        registers.pc += sex(12, b_imm(inst)) - 4;
     } break;
     case 0b101: {               // BGE
       if ((i32)RS1 >= (i32)RS2)
-        registers.pc += b_imm(inst);
+        registers.pc += sex(12, b_imm(inst)) - 4;
     } break;
     case 0b110: {               // BLTU
       if (RS1 < RS2)
-        registers.pc += b_imm(inst);
+        registers.pc += sex(12, b_imm(inst)) - 4;
     } break;
     case 0b111: {               // BGEU
       if (RS1 >= RS2)
-        registers.pc += b_imm(inst);
+        registers.pc += sex(12, b_imm(inst)) - 4;
     } break;
     default: {
       unimplemented("bad instruction\n");
@@ -180,12 +190,11 @@ static void exec_inst(u32 inst) {
     fprintf(stderr, "arithmetic funct3 %08x\n", funct3(inst));
     switch (funct3(inst)) {
     case 0b000: {               // ADDI
-      fprintf(stderr, "addi %08x + %08x\n", RS1, i_imm(inst));
-      RD = RS1 + i_imm(inst);
+      fprintf(stderr, "addi %08x + %08x\n", RS1, sex(11, i_imm(inst)));
+      RD = RS1 + sex(11, i_imm(inst));
       fprintf(stderr, "result %08x in register %d\n", RD, rd(inst));
     } break;
     case 0b010: {               // SLTI
-      // this has wrong sign extension
       RD = (i32)RS1 < (i32)i_imm(inst);
     } break;
     case 0b011: {               // SLTIU
@@ -279,7 +288,8 @@ static void exec_inst(u32 inst) {
   case 0b1110011: {
     switch (i_imm(inst)) {
     case 0b00000000000: {       // ECALL
-      unimplemented("ECALL");
+      fprintf(stderr, "ecall\n");
+      ecall();
     } break;
     case 0b00000000001: {       // EBREAK
       unimplemented("EBREAK");

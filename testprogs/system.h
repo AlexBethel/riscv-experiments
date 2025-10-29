@@ -3,8 +3,8 @@
 
 static inline void ecall(unsigned int arg0, unsigned int arg1) {
 #ifdef __riscv
-  register unsigned int call asm("s8") = arg0;
-  register unsigned int arg asm("s9") = arg1;
+  register unsigned int call asm("a0") = arg0;
+  register unsigned int arg asm("a1") = arg1;
 #else
   unsigned int call = arg0;
   unsigned int arg = arg1;
@@ -21,14 +21,33 @@ static inline __attribute((noreturn)) void exit() {
   __builtin_unreachable();
 }
 
-static inline void putchar(char c) {
+static inline int putchar(int c) {
   ecall(1, c);
+  return c;
 }
 
-static inline void puts(const char *str) {
+static inline int puts(const char *str) {
   for (; *str; str++)
     putchar(*str);
   putchar('\n');
+  return 0;
 }
+
+/* Main function. */
+extern int main();
+/* __attribute((section(".start"))) void _start() { */
+/*   main(); */
+/*   exit(); */
+/* } */
+asm("  .section .start,\"ax\",@progbits\n"
+    "  .align 2\n"
+    "  .globl _start\n"
+    "  .type _start, @function\n"
+    "_start:\n"
+    "  li sp, 0xfff0\n"
+    "  call main\n"
+    "  li a0, 0\n"
+    "  li a1, 0\n"
+    "  ecall\n");
 
 #endif /* SYSTEM_H */

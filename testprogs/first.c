@@ -1,7 +1,5 @@
 #include "system.h"
 
-__attribute((section(".start"))) void _start() {
+int main() {
   puts("Hello World!");
-  puts("This is a test");
-  exit();
 }
