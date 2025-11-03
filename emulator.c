@@ -6,7 +6,7 @@
 
 #include "util.h"
 
-// #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
+/* #define DEBUG(...) fprintf(stderr, __VA_ARGS__) */
 #define DEBUG(...)
 
 static struct registers {
@@ -37,8 +37,8 @@ static u32 seg(u32 inst, u32 high, u32 low) {
   return (inst >> low) & mask;
 }
 
-static u32 sex(u8 n_bits, u32 x) {
-  if (x & (1 << n_bits))
+static u32 sex(u8 n_bits, u32 x, bool sign) {
+  if (sign && x & (1 << n_bits))
     x |= ~((1 << n_bits) - 1);
   return x;
 }
@@ -52,31 +52,31 @@ BLOCK(funct3, 15, 12);
 BLOCK(rd, 12, 7);
 BLOCK(opcode, 7, 0);
 #undef BLOCK
-static u32 i_imm(u32 inst) {
-  return seg(inst, 32, 20);
+static u32 i_imm(u32 inst, bool sign) {
+  return sex(11, seg(inst, 32, 20), sign);
 }
-static u32 s_imm(u32 inst) {
+static u32 s_imm(u32 inst, bool sign) {
   u32 imm11_5 = seg(inst, 32, 25);
   u32 imm4_0 = seg(inst, 12, 7);
-  return (imm11_5 << 5) | imm4_0;
+  return sex(11, (imm11_5 << 5) | imm4_0, sign);
 }
 static u32 u_imm(u32 inst) {
-  return seg(inst, 32, 12); // TODO: leftshift by 12??
+  return seg(inst, 32, 12) << 12;
 }
 
-static u32 b_imm(u32 inst) {
+static u32 b_imm(u32 inst, bool sign) {
   u32 imm12 = seg(inst, 32, 31);
   u32 imm10_5 = seg(inst, 31, 25);
   u32 imm4_1 = seg(inst, 12, 8);
   u32 imm11 = seg(inst, 8, 7);
-  return (imm4_1 << 1) | (imm10_5 << 5) | (imm11 << 11) | (imm12 << 12);
+  return sex(12, (imm4_1 << 1) | (imm10_5 << 5) | (imm11 << 11) | (imm12 << 12), sign);
 }
-static u32 j_imm(u32 inst) {
+static u32 j_imm(u32 inst, bool sign) {
   u32 imm20 = seg(inst, 32, 31);
   u32 imm10_1 = seg(inst, 31, 21);
   u32 imm11 = seg(inst, 21, 20);
   u32 imm19_12 = seg(inst, 20, 12);
-  return (imm10_1 << 1) | (imm11 << 11) | (imm19_12 << 12) | (imm20 << 20);
+  return sex(20, (imm10_1 << 1) | (imm11 << 11) | (imm19_12 << 12) | (imm20 << 20), sign);
 }
 
 #define unimplemented(feat)                                                    \
@@ -93,24 +93,24 @@ static void exec_inst(u32 inst) {
 
   switch (opcode(inst)) {
   case 0b0110111: {             // LUI
-    RD = u_imm(inst) << 12;
+    RD = u_imm(inst);
   } break;
   case 0b0010111: {             // AUIPC
-    RD = (u_imm(inst) << 12) + registers.pc;
+    RD = u_imm(inst) + registers.pc;
   } break;
   case 0b1101111: {             // JAL
-    DEBUG("JAL %08x\n", sex(20, j_imm(inst)));
+    DEBUG("JAL %08x\n", j_imm(inst, true));
     DEBUG("writing return to x%d\n", rd(inst));
     RD = registers.pc + 4;
-    registers.pc += sex(20, j_imm(inst)) - 4; // 4 will be added back at the end of exec
+    registers.pc += j_imm(inst, true) - 4; // 4 will be added back at the end of exec
   } break;
   case 0b1100111: {             // JALR
     DEBUG("JALR register %d, store to %d\n", rs1(inst), rd(inst));
     RD = registers.pc + 4;
     DEBUG("computed jump location [%08x + %08x - 4] = %08x\n",
-            RS1, i_imm(inst), (i32)RS1 + (i32)i_imm(inst) - 4);
-    registers.pc = (i32)RS1 + (i32)i_imm(inst) - 4;
-    registers.pc &= ~1;
+          RS1, i_imm(inst, true), RS1 + i_imm(inst, true) - 4);
+    registers.pc = RS1 + i_imm(inst, true) - 4;
+    registers.pc &= ~1; // XXX: is this needed?
     DEBUG("jumped to %08x\n", registers.pc + 4);
   } break;
   case 0b1100011: {
@@ -118,29 +118,29 @@ static void exec_inst(u32 inst) {
     case 0b000: {               // BEQ
       DEBUG("beq\n");
       if (RS1 == RS2)
-        registers.pc += sex(12, b_imm(inst)) - 4;
+        registers.pc += b_imm(inst, true) - 4;
     } break;
     case 0b001: {               // BNE
-      DEBUG("bne %08x\n", sex(12, b_imm(inst)));
+      DEBUG("bne %08x\n", b_imm(inst, true));
       if (RS1 != RS2)
-        registers.pc += sex(12, b_imm(inst)) - 4;
+        registers.pc += b_imm(inst, true) - 4;
     } break;
     case 0b100: {               // BLT
       DEBUG("blt\n");
       if ((i32)RS1 < (i32)RS2)
-        registers.pc += sex(12, b_imm(inst)) - 4;
+        registers.pc += b_imm(inst, true) - 4;
     } break;
     case 0b101: {               // BGE
       if ((i32)RS1 >= (i32)RS2)
-        registers.pc += sex(12, b_imm(inst)) - 4;
+        registers.pc += b_imm(inst, true) - 4;
     } break;
     case 0b110: {               // BLTU
       if (RS1 < RS2)
-        registers.pc += sex(12, b_imm(inst)) - 4;
+        registers.pc += b_imm(inst, true) - 4;
     } break;
     case 0b111: {               // BGEU
       if (RS1 >= RS2)
-        registers.pc += sex(12, b_imm(inst)) - 4;
+        registers.pc += b_imm(inst, true) - 4;
     } break;
     default: {
       unimplemented("bad instruction\n");
@@ -150,19 +150,19 @@ static void exec_inst(u32 inst) {
   case 0b0000011: {
     switch (funct3(inst)) {
     case 0b000: {               // LB
-      RD = *(i8 *)(memory + RS1 + i_imm(inst));
+      RD = *(i8 *)(memory + RS1 + i_imm(inst, true));
     } break;
     case 0b001: {               // LH
-      RD = *(i16 *)(memory + RS1 + i_imm(inst));
+      RD = *(i16 *)(memory + RS1 + i_imm(inst, true));
     } break;
     case 0b010: {               // LW
-      RD = *(i32 *)(memory + RS1 + i_imm(inst));
+      RD = *(i32 *)(memory + RS1 + i_imm(inst, true));
     } break;
     case 0b100: {               // LBU
-      RD = *(u8 *)(memory + RS1 + i_imm(inst));
+      RD = *(u8 *)(memory + RS1 + i_imm(inst, true));
     } break;
     case 0b101: {               // LHU
-      RD = *(u16 *)(memory + RS1 + i_imm(inst));
+      RD = *(u16 *)(memory + RS1 + i_imm(inst, true));
     } break;
     default: {
       unimplemented("bad instruction\n");
@@ -171,18 +171,18 @@ static void exec_inst(u32 inst) {
   } break;
   case 0b0100011: {
     DEBUG("store\n");
-    DEBUG("store imm %08x\n", s_imm(inst));
-    DEBUG("computed destination %08x\n", RS1 + s_imm(inst));
+    DEBUG("store imm %08x\n", s_imm(inst, true));
+    DEBUG("computed destination %08x\n", RS1 + s_imm(inst, true));
     DEBUG("writing reg %d value %08x\n", rs2(inst), RS2);
     switch (funct3(inst)) {
     case 0b000: {               // SB
-      *(u8 *)(memory + RS1 + s_imm(inst)) = RS2;
+      *(u8 *)(memory + RS1 + s_imm(inst, true)) = RS2;
     } break;
     case 0b001: {               // SH
-      *(u16 *)(memory + RS1 + s_imm(inst)) = RS2;
+      *(u16 *)(memory + RS1 + s_imm(inst, true)) = RS2;
     } break;
     case 0b010: {               // SW
-      *(u32 *)(memory + RS1 + s_imm(inst)) = RS2;
+      *(u32 *)(memory + RS1 + s_imm(inst, true)) = RS2;
     } break;
     default: {
       unimplemented("bad instruction\n");
@@ -193,36 +193,35 @@ static void exec_inst(u32 inst) {
     DEBUG("arithmetic funct3 %08x\n", funct3(inst));
     switch (funct3(inst)) {
     case 0b000: {               // ADDI
-      DEBUG("addi %08x + %08x\n", RS1, sex(11, i_imm(inst)));
-      RD = RS1 + sex(11, i_imm(inst));
+      DEBUG("addi %08x + %08x\n", RS1, i_imm(inst, true));
+      RD = RS1 + i_imm(inst, true);
       DEBUG("result %08x in register %d\n", RD, rd(inst));
     } break;
     case 0b010: {               // SLTI
-      RD = (i32)RS1 < (i32)i_imm(inst);
+      RD = (i32)RS1 < (i32)i_imm(inst, true);
     } break;
     case 0b011: {               // SLTIU
-      RD = RS1 < i_imm(inst);
+      RD = (i32)RS1 < (i32)i_imm(inst, true);
     } break;
     case 0b100: {               // XORI
-      // wrong sign extension
-      RD = RS1 ^ i_imm(inst);
+      RD = RS1 ^ i_imm(inst, true);
     } break;
     case 0b110: {               // ORI
-      RD = RS1 | i_imm(inst);
+      RD = RS1 | i_imm(inst, true);
     } break;
     case 0b111: {               // ANDI
-      RD = RS1 & i_imm(inst);
+      RD = RS1 & i_imm(inst, true);
     } break;
     case 0b001: {               // SLLI
-      RD = RS1 << (i_imm(inst) & 0x1f);
+      RD = RS1 << (i_imm(inst, false) & 0x1f);
     } break;
     case 0b101: {
       switch (funct7(inst)) {
       case 0b0000000: {         // SRLI
-        RD = RS1 >> (i_imm(inst) & 0x1f);
+        RD = RS1 >> (i_imm(inst, false) & 0x1f);
       } break;
       case 0b0100000: {         // SRAI
-        RD = (i32)RS1 >> (i_imm(inst) & 0x1f);
+        RD = (i32)RS1 >> (i_imm(inst, false) & 0x1f);
       } break;
       default: {
         unimplemented("bad instruction\n");
@@ -289,7 +288,7 @@ static void exec_inst(u32 inst) {
     // do nothing, this is a single-threaded emulator
   } break;
   case 0b1110011: {
-    switch (i_imm(inst)) {
+    switch (i_imm(inst, false)) {
     case 0b00000000000: {       // ECALL
       DEBUG("ecall\n");
       ecall();
