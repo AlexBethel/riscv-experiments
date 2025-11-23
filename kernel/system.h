@@ -36,18 +36,5 @@ static inline int puts(const char *str) {
 /* Main function. */
 extern int main();
 
-#ifdef AB_MAIN
-asm("  .section .start,\"ax\",@progbits\n"
-    "  .align 2\n"
-    "  .globl _real_start\n"
-    "  .type _real_start, @function\n"
-    "_real_start:\n"
-    "  li sp, 0xfff0\n" // Initialize the stack pointer
-    "  call _start\n" // main()
-    "  li a0, 0\n"  // exit()
-    "  li a1, 0\n"
-    "  ecall\n");
-#endif
-
 #endif /* SYSTEM_H */
 

@@ -1,25 +1,24 @@
 ENTRY(start);
 
-. = 0x80000000;
+. = 0x00000000;
 
 SECTIONS {
-  .text : ALIGN(4K) {
+  .text : ALIGN(16) {
     *(.init);
     *(.text);
   }
-  .bss : ALIGN(4K) {
+  .bss : ALIGN(16) {
     PROVIDE(bss_start = .);
     *(.bss);
+    PROVIDE(bss_end = .);
     . += 4096;
     PROVIDE(stack_top = .);
-    . += 4096;
     PROVIDE(global_pointer = .);
-    PROVIDE(bss_end = .);
   }
-  .rodata : ALIGN(4K) {
+  .rodata : ALIGN(16) {
     *(.rodata);
   }
-  .data : ALIGN(4K) {
+  .data : ALIGN(16) {
     *(.data);
   }
 }

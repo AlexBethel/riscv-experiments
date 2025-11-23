@@ -20,15 +20,18 @@ start:
         la t5, bss_start
         la t6, bss_end
 bss_clear:
+        bgeu t5, t6, bss_clear_done
         sw zero, (t5)
         addi t5, t5, 4
-        bltu t5, t6, bss_clear
+        j bss_clear
 
-        la t0, kmain
+bss_clear_done:
+
+        /* la t0, kmain */
         /* csrw mepc, t0 */
 
         /* Jump into the kernel */
-        tail kmain
+        call kmain
 
         /* Exit the emulator */
         li a0, 0
