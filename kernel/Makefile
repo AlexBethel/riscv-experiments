@@ -10,6 +10,7 @@ kernel: kernel.o entry.o
 
 install:
 	install -Dt ${out}/bin kernel
+	install -Dt ${out}/bin kernel.flat
 
 clean:
 	$(RM) *.o *.d kernel kernel.flat
