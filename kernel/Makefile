@@ -1,7 +1,8 @@
-CFLAGS += -fno-zero-initialized-in-bss -Oz
+CFLAGS += -fno-zero-initialized-in-bss -Oz -flto
 CFLAGS += -MD
 
-LDFLAGS += -Wl,--script ./linker.ld -nostdlib
+LDFLAGS += -Wl,--script ./linker.ld -nostdlib -flto
+LDLIBS += -lgcc
 
 kernel.flat: kernel
 	$(OBJCOPY) -O binary $^ $@
@@ -14,3 +15,5 @@ install:
 
 clean:
 	$(RM) *.o *.d kernel kernel.flat
+
+-include *.d

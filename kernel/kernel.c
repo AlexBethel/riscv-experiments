@@ -5,4 +5,7 @@
 
 void kmain() {
   puts("Hello World!");
+
+  int i = getchar();
+  putchar(i);
 }
