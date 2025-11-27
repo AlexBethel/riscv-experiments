@@ -1,4 +1,4 @@
-CFLAGS += -fno-zero-initialized-in-bss -Oz -flto
+CFLAGS += -Oz -flto
 CFLAGS += -MD
 
 LDFLAGS += -Wl,--script ./linker.ld -nostdlib -flto
