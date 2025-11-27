@@ -16,7 +16,13 @@ let
     crossSystem.config = "riscv32-unknown-none-elf";
   };
 in
-pkgsRiscV.stdenv.mkDerivation {
-  name = "kernel";
-  src = lib.cleanSource ./kernel;
+{
+  kernel = pkgsRiscV.stdenv.mkDerivation {
+    name = "kernel";
+    src = lib.cleanSource ./kernel;
+  };
+  emulator = pkgs.stdenv.mkDerivation {
+    name = "emulator";
+    src = lib.cleanSource ./emulator;
+  };
 }
