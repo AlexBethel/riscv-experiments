@@ -1,4 +1,4 @@
-CFLAGS += -Oz -flto
+CFLAGS += -Oz -flto -ffreestanding
 CFLAGS += -MD
 
 LDFLAGS += -Wl,--script ./linker.ld -nostdlib -flto

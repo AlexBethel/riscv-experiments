@@ -23,11 +23,16 @@ static void ecall() {
   case 0: {
     // exit
     exit(0);
-  }
+  } break;
   case 1: {
     // putchar
     putchar(arg1);
-  }
+  } break;
+  case 2: {
+    // getchar
+    unsigned int res = getchar();
+    registers.xreg[5] = res;
+  } break;
   }
 }
 

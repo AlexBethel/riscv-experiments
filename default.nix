@@ -15,7 +15,7 @@ let
   '') {
     crossSystem.config = "riscv32-unknown-none-elf";
   };
-in
+in rec
 {
   kernel = pkgsRiscV.stdenv.mkDerivation {
     name = "kernel";
@@ -25,4 +25,9 @@ in
     name = "emulator";
     src = lib.cleanSource ./emulator;
   };
+
+  test = pkgs.writeScriptBin "emulator_test" ''
+    #!/bin/sh
+    ${emulator}/bin/emulator ${kernel}/bin/kernel.flat
+  '';
 }
